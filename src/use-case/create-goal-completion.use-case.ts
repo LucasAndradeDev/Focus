@@ -24,7 +24,8 @@ export async function createGoalCompletion({ goalId }: CreateGoalCompletionProps
             .where(
                 and(
                     lte(goalCompletions.created_at, lastDayOfWeek),
-                    gte(goalCompletions.created_at, firstDayOfWeek)
+                    gte(goalCompletions.created_at, firstDayOfWeek),
+                    eq(goalCompletions.goalId, goalId)
                 )
             )
             .groupBy(goalCompletions.goalId)
@@ -39,17 +40,30 @@ export async function createGoalCompletion({ goalId }: CreateGoalCompletionProps
         })
         .from(goals)
         .leftJoin(goalsCompletedUpToWeek, eq(goals.id, goalsCompletedUpToWeek.goalId))
+        .where(eq(goals.id, goalId))
+        .limit(1);
     
+    // Verifique se o resultado está presente
+    if (result.length === 0) {
+        throw new Error('Goal not found');
+    }
+
+    const { desiredWeeklyFrequency, completionCount } = result[0];
+
+    // Verifique se a meta já foi completada
+    if (completionCount >= desiredWeeklyFrequency) {
+        throw new Error('Goal already completed');
+    }
+
     // Inserir um novo registro de conclusão de meta
-    const insertionResult = await db
+    const insertResult = await db
         .insert(goalCompletions)
         .values({ goalId })
         .returning();
 
-    const goalCompletion = insertionResult[0];
+    const goalCompletion = insertResult[0];
 
     return {
         goalCompletion,
-        result
     };
 }
