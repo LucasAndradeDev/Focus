@@ -1,11 +1,25 @@
-name: pocket-js-server
-
+version: '3.8'
 services:
+  backend:
+    build:
+      context: ./backend  # Aponta para a pasta onde está o código do backend
+    ports:
+      - "3333:3333"       # Porta do backend
+    environment:
+      DATABASE_URL: postgres://root:1234@pg:5432/focus
+    depends_on:
+      - pg
+
   pg:
     image: bitnami/postgresql:13.16.0
     ports:
-      - 5432:5432
+      - "5432:5432"
     environment:
       POSTGRESQL_USER: root
       POSTGRESQL_PASSWORD: 1234
       POSTGRESQL_DATABASE: focus
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
