@@ -1,0 +1,50 @@
+/* styles.css */
+
+.user-management {
+    position: absolute; /* ou relative, dependendo do que você precisa */
+    top: 20px; /* Alinhado no topo */
+    left: 20px; /* Alinhado à esquerda */
+    width: 500px; /* Defina a largura desejada */
+    border-radius: 8px; /* Cantos arredondados */
+}
+
+@media (max-width: 768px) {
+    .user-management {
+        position: relative; /* Ajusta a posição em telas menores */
+        width: 100%; /* Largura total em telas pequenas */
+        left: 0; /* Resetando a posição */
+        margin: 10px 0; /* Margem externa para espaçamento */
+        padding: 20px; /* Aumenta o padding para melhor espaçamento */
+    }
+
+    .user-management h1 {
+        font-size: 1.5rem; /* Tamanho da fonte do nome do usuário */
+        margin-bottom: 12px; /* Espaço abaixo do título */
+        color: #333; /* Cor do texto */
+        text-align: center; /* Centraliza o texto */
+    }
+
+    .user-management .flex {
+        flex-direction: column; /* Muda a direção do flex para coluna */
+        align-items: stretch; /* Alinha os itens para preencher a largura */
+    }
+
+    .user-management button {
+        width: 100%; /* Botões em largura total */
+        margin-top: 10px; /* Espaçamento entre os botões */
+        padding: 12px; /* Aumenta a altura dos botões */
+        font-size: 1.2rem; /* Tamanho da fonte dos botões */
+        text-align: center;
+        border-radius: 8px;
+    }
+
+    .user-management p{
+        text-align: center;
+        position: relative;
+        bottom: 1rem;
+    }
+
+    .user-management .flex:last-child button {
+        margin-top: 0; /* Remove margem do último botão */
+    }
+}

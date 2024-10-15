@@ -36,6 +36,7 @@ export function DialogContent(props: DialogPrimitive.DialogContentProps) {
       >
         <DialogClose>
           <button
+            type='button'
             className="absolute top-4 right-4 p-2 bg-[#16BF78] rounded-full hover:bg-[#105841] transition-colors duration-300"
             aria-label="Fechar"
           >

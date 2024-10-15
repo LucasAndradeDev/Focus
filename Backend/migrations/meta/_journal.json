@@ -15,6 +15,20 @@
       "when": 1726079778394,
       "tag": "0001_typical_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1727287624456,
+      "tag": "0002_remarkable_fabian_cortez",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1727386936890,
+      "tag": "0003_stormy_radioactive_man",
+      "breakpoints": true
     }
   ]
 }

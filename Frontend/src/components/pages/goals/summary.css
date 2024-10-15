@@ -1,0 +1,8 @@
+<div className="flex items-center justify-center relative md:bottom-48 bottom-0">
+  <img
+    src={logo}
+    alt="Logo"
+    className="w-100 h-auto animate-fade-in"
+    style={{ animationDuration: '1s' }}
+  />
+</div>

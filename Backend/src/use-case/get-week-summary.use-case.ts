@@ -1,84 +1,113 @@
-import { and, sql, gte, lte, eq } from "drizzle-orm";
-import { db } from "../db";
-import { goalCompletions, goals } from "../db/schema/schema";
-import dayjs from "dayjs";
-import { desc } from "drizzle-orm";
+// Importação da lib dayjs, para manipulação de datas
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+// Importação do banco de dados
+import { db } from '../db'
+// Importação das tabelas
+import { goalCompletions, goals } from '../db/schema/schema'
+import dayjs from 'dayjs'
 
+// Interface da função de busca de resumo por semana
+export interface GetWeekSummaryProps {
+  userId: string
+}
 
-export async function getWeekSummary() {
-  const lastDayOfWeek = dayjs().endOf('week').toDate();
-  const firstDayOfWeek = dayjs().startOf('week').toDate();
+// Funcionalidade para obter resumo da semana
+export async function getWeekSummary({ userId }: GetWeekSummaryProps) {
+  const firstDayOfWeek = dayjs().startOf('week').toDate()
+  const lastDayOfWeek = dayjs().endOf('week').toDate()
 
-  try {
-    // CTE para metas criadas até o final da semana
-    const goalsCreatedUpToWeek = db
+  // CTE para metas criadas até o final da semana
+  const goalsCreatedUpToWeek = db.$with('goals_created_up_to_week').as(
+    db
       .select({
         id: goals.id,
         title: goals.title,
         desiredWeeklyFrequency: goals.desiredWeeklyFrequency,
-        createdAt: goals.created_at,
+        createdAt: goals.createdAt,
       })
       .from(goals)
-      .where(lte(goals.created_at, lastDayOfWeek))
-      .as('goals_created_up_to_week');
-
-    // CTE para metas completadas durante a semana
-    const goalsCompletedUpToWeek = db
-      .select({
-        goalId: goalCompletions.goalId,
-        title: goals.title,
-        completedAtDate: sql`DATE(${goalCompletions.created_at})`.mapWith(String).as('completed_at_date'),
-        completedAt: goalCompletions.created_at,
-      })
-      .from(goalCompletions)
-      .innerJoin(goals, eq(goalCompletions.goalId, goals.id))
       .where(
         and(
-          lte(goalCompletions.created_at, lastDayOfWeek),
-          gte(goalCompletions.created_at, firstDayOfWeek)
+          lte(goals.createdAt, lastDayOfWeek), // Seleciona apenas as metas criadas até o final da semana
+          eq(goals.userId, userId) // Seleciona apenas as metas criadas pelo usuário informado
         )
       )
-      .orderBy(desc(goalCompletions.created_at))
-      .as('goals_completed_up_to_week');
+  )
 
-    // CTE para agrupar metas completadas por dia da semana
-    const goalsCompletedByWeekDay = db
+  // CTE para metas completadas durante a semana
+  const goalsCompletedInWeek = db.$with('goals_completed_in_week').as(
+    db
       .select({
-        completedAtDate: goalsCompletedUpToWeek.completedAtDate,
-        completions: sql`
-          jsonb_agg(
-            jsonb_build_object(
-              'id', ${goalsCompletedUpToWeek.goalId},
-              'title', ${goalsCompletedUpToWeek.title},
-              'completedAt', ${goalsCompletedUpToWeek.completedAt}
+        id: goalCompletions.id,
+        title: goals.title,
+        completedAt: goalCompletions.createdAt, // Data da conclusão - Formato 'YYYY-MM-DD HH:mm:ss'
+        completedAtDate: sql /*Data da conclusão convertida para 'YYYY-MM-DD'*/`  
+          DATE(${goalCompletions.createdAt})
+        `.as('completedAtDate'),
+      })
+      .from(goalCompletions)
+      .innerJoin(goals, eq(goals.id, goalCompletions.goalId)) // O id da meta deve ser igual ao id da conclusão
+      .where(
+        and(
+          gte(goalCompletions.createdAt, firstDayOfWeek),
+          lte(goalCompletions.createdAt, lastDayOfWeek)
+        )
+      )
+      .orderBy(desc(goalCompletions.createdAt))
+  )
+
+  // CTE para metas completadas por dia
+  const goalsCompletedByWeekDay = db.$with('goals_completed_by_week_day').as(
+    db
+      .select({
+        completedAtDate: goalsCompletedInWeek.completedAtDate, // Data da conclusão
+        completions: sql /*Detalhes da conclusão, utilizada para montar o resumo*/`
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', ${goalsCompletedInWeek.id},
+              'title', ${goalsCompletedInWeek.title},
+              'completedAt', ${goalsCompletedInWeek.completedAt}
             )
           )
         `.as('completions'),
       })
-      .from(goalsCompletedUpToWeek)
-      .groupBy(goalsCompletedUpToWeek.completedAtDate)
-      .orderBy(desc(goalsCompletedUpToWeek.completedAtDate))
-      .as('goals_completed_by_week_day');
+      .from(goalsCompletedInWeek)
+      .groupBy(goalsCompletedInWeek.completedAtDate)
+      .orderBy(desc(goalsCompletedInWeek.completedAtDate))
+  )
 
+  // Tipagem para o resultado
+  type GoalsPerDay = Record<
+    string,
+    {
+      id: string
+      title: string
+      completedAt: string
+    }[]
+  >
 
-    type goalsPerDay = Record<string, { id: string; title: string; completedAt: string}[]>
+  // Consulta final, para obter o resumo
+  const result = await db
+    .with(goalsCreatedUpToWeek, goalsCompletedInWeek, goalsCompletedByWeekDay)
+    .select({
+      completed:
+        sql /*Esse SQL calcula quantas vezes as metas foram completadas*/`(SELECT COUNT(*) FROM ${goalsCompletedInWeek})`.mapWith( // Converte o resultado para o tipo Number
+          Number 
+        ),
+      total:
+        sql /*Esse outro campo calcula quantas metas existem, o total de metas criadas*/`(SELECT SUM(${goalsCreatedUpToWeek.desiredWeeklyFrequency}) FROM ${goalsCreatedUpToWeek})`.mapWith(
+          Number
+        ),
+      goalsPerDay: sql /**/<GoalsPerDay>`
+        JSON_OBJECT_AGG(
+          ${goalsCompletedByWeekDay.completedAtDate},
+          ${goalsCompletedByWeekDay.completions}
+        )
+      `,
+    })
+    .from(goalsCompletedByWeekDay)
 
-    // Consulta final
-    const result = await db
-      .select({
-        completions: sql`(SELECT COUNT(*) FROM ${goalsCompletedUpToWeek})`.mapWith(Number).as('completions'),
-        total: sql`(SELECT SUM(${goalsCreatedUpToWeek.desiredWeeklyFrequency}) FROM ${goalsCreatedUpToWeek})`.mapWith(Number).as('total'),
-        goalsPerDay: sql <goalsPerDay>`
-          (SELECT jsonb_object_agg(${goalsCompletedByWeekDay.completedAtDate}, ${goalsCompletedByWeekDay.completions}) FROM ${goalsCompletedByWeekDay})
-        `.as('goalsPerDay')
-      })
-      .from(goalsCreatedUpToWeek);
-
-    return {
-      summary: result[0], // Use [0] to get the single result object from the array
-    };
-  } catch (error) {
-    console.error('Erro ao obter o resumo da semana:', error);
-    throw error; // Re-throw to be caught by the route handler
+  return {
+    summary: result[0],
   }
 }
